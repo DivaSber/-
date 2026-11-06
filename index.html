@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Умный Чемодан</title>
+    
+    <!-- PWA Метатеги -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Чемодан">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Sortable.js для Drag&Drop -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <!-- Chart.js для красивых диаграмм -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8fafc; 
+            margin: 0; 
+            padding: 0; 
+            -webkit-tap-highlight-color: transparent;
+        }
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen sm:p-4">
+
+    <!-- Контейнер приложения -->
+    <div class="w-full sm:max-w-md h-[100dvh] sm:h-[840px] sm:rounded-[40px] bg-slate-900 sm:shadow-2xl flex flex-col relative overflow-hidden sm:border border-slate-700">
+        
+        <div id="slideshow-bg" class="absolute inset-0 bg-cover bg-center transition-all duration-1000 opacity-60"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-slate-900/20 pointer-events-none z-0"></div>
+
+        <!-- ================= ЭКРАН 1: СТАРТ ================= -->
+        <div id="screen-1" class="flex flex-col justify-between p-6 h-full z-10 w-full absolute inset-0">
+            <div class="pt-10 text-center">
+                <span class="bg-white/20 backdrop-blur-md text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase border border-white/30">
+                    Умный Чемодан
+                </span>
+                <h1 class="text-4xl font-bold text-white mt-5 drop-shadow-lg">Куда едем?</h1>
+                <p class="text-slate-300 text-sm mt-2">Список вещей подстроится под вас</p>
+            </div>
+
+            <div class="bg-white/95 backdrop-blur-xl p-6 rounded-3xl shadow-2xl space-y-5 w-full mb-4 border border-white/50">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Город</label>
+                    <input type="text" id="city-input" placeholder="Например: Сочи, Дубай, Париж" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium">
+                    <p id="error-msg" class="text-red-500 text-xs mt-2 hidden font-medium">Город не найден, попробуйте другой.</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Ваш Возраст</label>
+                    <input type="number" id="age-input" placeholder="30" min="1" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-xs font-semibold text-slate-500 uppercase">Дней в пути</label>
+                        <span id="days-val" class="text-blue-600 font-bold text-sm bg-blue-50 px-2 py-0.5 rounded-lg">7</span>
+                    </div>
+                    <input type="range" id="days-range" min="1" max="30" value="7" class="w-full accent-blue-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                </div>
+
+                <button id="start-btn" onclick="startApp()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-500/30 transition-all active:scale-95 flex justify-center items-center h-14 mt-2">
+                    Создать список вещей
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= ЭКРАН 2: СПИСОК ================= -->
+        <div id="screen-2" class="hidden flex-col h-full bg-slate-50 z-20 absolute inset-0 w-full fade-in">
+            <div class="bg-white px-5 pt-12 pb-4 border-b border-slate-200 shadow-sm shrink-0">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 id="header-city" class="text-2xl font-bold text-slate-900 leading-tight">Город</h2>
+                        <p id="header-subtitle" class="text-sm text-slate-500 font-medium mt-0.5">Погода загружается...</p>
+                    </div>
+                    <button onclick="goToScreen(1)" class="text-xs font-bold text-slate-600 bg-slate-100 px-4 py-2.5 rounded-xl active:bg-slate-200 transition-colors">Изменить</button>
+                </div>
+                <div class="mt-5 flex justify-between items-center bg-blue-50/50 border border-blue-100 rounded-xl px-4 py-3">
+                    <span class="text-xs font-semibold text-blue-800 uppercase tracking-wide">В чемодане:</span>
+                    <span id="progress-text" class="text-sm font-black text-blue-600">0 / 0</span>
+                </div>
+            </div>
+
+            <!-- Скроллируемая область -->
+            <div class="flex-1 overflow-y-auto p-4 pb-24 space-y-4">
+                <div id="categories-container" class="space-y-4"></div>
+                
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
+                    <h3 class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">Добавить вещь</h3>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="custom-item-name" placeholder="Название..." class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-blue-500">
+                        <select id="custom-item-category" class="bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 max-w-[120px]"></select>
+                    </div>
+                    <button onclick="addCustomItem()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow-md active:scale-95 transition-all text-sm mb-4">
+                        + Добавить в список
+                    </button>
+
+                    <hr class="border-slate-100 mb-4">
+
+                    <h3 class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">Новая категория</h3>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-category-name" placeholder="Название категории..." class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-blue-500">
+                        <button onclick="addNewCategory()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-xl shadow-md active:scale-95 transition-all text-sm">
+                            Создать
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="absolute bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-lg border-t border-slate-200 shrink-0">
+                <button onclick="goToScreen(3)" class="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl active:scale-95 transition-transform shadow-xl">
+                    Завершить сборку
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= ЭКРАН 3: ИТОГИ И РЕКЛАМА ================= -->
+        <div id="screen-3" class="hidden flex-col h-full bg-white relative z-30 absolute inset-0 w-full fade-in overflow-hidden">
+            <div class="px-6 pt-12 pb-4 shrink-0 flex items-center bg-white z-10">
+                <button onclick="goToScreen(2)" class="text-sm font-semibold text-slate-600 bg-slate-100 px-4 py-2.5 rounded-xl active:bg-slate-200 transition-colors">← Назад к списку</button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto px-6 pb-10 space-y-6">
+                <div class="text-center mt-2">
+                    <h2 class="text-2xl font-bold text-slate-900">Вес вашего багажа</h2>
+                    <div class="text-6xl font-black text-blue-600 my-2 drop-shadow-sm tracking-tighter" id="total-weight-text">0.0 кг</div>
+                    <p class="text-[11px] text-slate-400 font-medium">Учитываются только отмеченные галочкой вещи</p>
+                </div>
+
+                <div class="bg-slate-50 p-4 rounded-3xl border border-slate-100 shadow-sm relative h-[220px] w-full">
+                    <canvas id="weightChart"></canvas>
+                </div>
+
+                <!-- ================= ВАШ GOOGLE ADS ================= -->
+                <div class="relative w-full max-w-[320px] min-h-[100px] mx-auto rounded-xl overflow-hidden shadow-md group block border border-slate-200 bg-slate-50">
+                    <!-- Заглушка/Фолбэк пока Ads не загрузится -->
+                    <a href="https://aviasales.ru" target="_blank" class="absolute inset-0 bg-blue-600 flex items-center justify-between p-4 no-underline hover:bg-blue-700 transition-colors z-0">
+                        <div class="text-left">
+                            <div class="text-[10px] font-bold uppercase text-blue-200 tracking-wider mb-1">Реклама</div>
+                            <div class="text-sm font-extrabold text-white leading-tight">Дешевые авиабилеты ✈️</div>
+                            <div class="text-xs text-blue-100 mt-1 font-medium">Скидки до 30% на рейсы</div>
+                        </div>
+                        <div class="bg-white text-blue-600 text-[11px] font-bold py-2 px-4 rounded-lg shadow-sm">
+                            Найти
+                        </div>
+                    </a>
+
+                    <!-- Ваш личный боевой код Google AdSense -->
+                    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9322662980739157" crossorigin="anonymous"></script>
+                    <!-- ads -->
+                    <ins class="adsbygoogle absolute inset-0 z-10"
+                         style="display:block;width:100%;height:100%;"
+                         data-ad-client="ca-pub-9322662980739157"
+                         data-ad-slot="6295506021"
+                         data-ad-format="auto"
+                         data-full-width-responsive="true"></ins>
+                    <script>
+                         (adsbygoogle = window.adsbygoogle || []).push({});
+                    </script>
+                </div>
+                <!-- ============================================== -->
+
+                <a href="mailto:lovely.pig1363@gmail.com?subject=Идея для Умного Чемодана" class="block w-full bg-slate-900 text-white text-center font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform mt-4">
+                    Написать разработчику
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Регистрация PWA Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('PWA Service Worker зарегистрирован'))
+                    .catch(err => console.log('Ошибка PWA: ', err));
+            });
+        }
+    </script>
+
+    <!-- Основная логика приложения -->
+    <script>
+        let initialItems = [];
+        let chartInstance = null;
+        let categories = ['Документы', 'Одежда', 'Обувь', 'Техника', 'Аптечка', 'Разное'];
+        
+        const bgImages = [
+            'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=1000&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?q=80&w=1000&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1506012787146-f92b2d7d6d96?q=80&w=1000&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1000&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1000&auto=format&fit=crop'
+        ];
+
+        let currentImgIndex = 0;
+        const bgElement = document.getElementById('slideshow-bg');
+        
+        function changeBackground() {
+            bgElement.style.opacity = '0.4';
+            setTimeout(() => {
+                bgElement.style.backgroundImage = `url('${bgImages[currentImgIndex]}')`;
+                bgElement.style.opacity = '0.6';
+                currentImgIndex = (currentImgIndex + 1) % bgImages.length;
+            }, 500);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            changeBackground();
+            setInterval(changeBackground, 5000);
+            updateCategorySelect();
+
+            document.getElementById('days-range').addEventListener('input', (e) => {
+                document.getElementById('days-val').innerText = e.target.value;
+            });
+        });
+
+        function goToScreen(num) {
+            const s1 = document.getElementById('screen-1');
+            const s2 = document.getElementById('screen-2');
+            const s3 = document.getElementById('screen-3');
+            
+            s1.classList.add('hidden'); s1.classList.remove('flex');
+            s2.classList.add('hidden'); s2.classList.remove('flex');
+            s3.classList.add('hidden'); s3.classList.remove('flex');
+
+            if(num === 1) {
+                s1.classList.remove('hidden'); s1.classList.add('flex');
+            }
+            if(num === 2) {
+                s2.classList.remove('hidden'); s2.classList.add('flex');
+                renderCategories();
+            }
+            if(num === 3) {
+                s3.classList.remove('hidden'); s3.classList.add('flex');
+                updateSummary();
+            }
+        }
+
+        async function startApp() {
+            const input = document.getElementById('city-input').value.trim();
+            const age = parseInt(document.getElementById('age-input').value) || 25;
+            const days = parseInt(document.getElementById('days-range').value) || 7;
+            const errorMsg = document.getElementById('error-msg');
+            const btn = document.getElementById('start-btn');
+
+            if (!input) {
+                document.getElementById('city-input').focus();
+                return;
+            }
+            errorMsg.classList.add('hidden');
+            btn.innerHTML = `<svg class="animate-spin h-5 w-5 text-white mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+
+            try {
+                const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(input)}&count=1&language=ru`);
+                const geoData = await geoRes.json();
+                
+                if (!geoData.results || geoData.results.length === 0) throw new Error();
+                const loc = geoData.results[0];
+                const currentCity = loc.name;
+
+                let temp = 20;
+                let desc = "Ясно";
+                
+                try {
+                    const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current_weather=true`);
+                    const weatherData = await weatherRes.json();
+                    if(weatherData.current_weather) {
+                        temp = Math.round(weatherData.current_weather.temperature);
+                        desc = temp > 22 ? "Жарко ☀️" : (temp > 12 ? "Тепло 🌤" : "Холодно ❄️");
+                    }
+                } catch(e) {}
+
+                generateList(temp, age, days);
+                
+                document.getElementById('header-city').innerText = currentCity;
+                document.getElementById('header-subtitle').innerText = `${days} дней • ${temp}°C, ${desc}`;
+                
+                goToScreen(2);
+            } catch (err) {
+                errorMsg.classList.remove('hidden');
+            } finally {
+                btn.innerHTML = "Создать список вещей";
+            }
+        }
+
+        function generateList(temp, age, days) {
+            initialItems = [];
+            let id = 1;
+            
+            const add = (text, category, weight) => {
+                initialItems.push({ id: String(id++), text, category, weight, checked: false });
+            };
+
+            // База
+            add('Паспорт / Загранпаспорт', 'Документы', 50);
+            add('Билеты и бронь отеля', 'Документы', 20);
+            add('Наличные и карты', 'Документы', 50);
+            add(`Нижнее белье (${days} шт.)`, 'Одежда', days * 50);
+            add(`Носки (${days} пар)`, 'Одежда', days * 30);
+            add('Пижама / Для сна', 'Одежда', 200);
+            add('Смартфон и зарядка', 'Техника', 250);
+            add('Зубная щетка, паста, дезодорант', 'Разное', 250);
+            add('Базовая аптечка', 'Аптечка', 200);
+
+            // Погода
+            if (temp > 22) {
+                add('Легкие футболки / Майки', 'Одежда', 400);
+                add('Шорты / Юбки', 'Одежда', 300);
+                add('Купальник / Плавки', 'Одежда', 150);
+                add('Сандалии / Шлепанцы', 'Обувь', 400);
+                add('Солнцезащитные очки', 'Разное', 100);
+                add('Крем от загара (SPF)', 'Разное', 150);
+            } else if (temp > 12) {
+                add('Джинсы / Штаны', 'Одежда', 600);
+                add('Футболки', 'Одежда', 300);
+                add('Ветровка или кардиган', 'Одежда', 500);
+                add('Удобные кроссовки', 'Обувь', 700);
+                add('Зонт или дождевик', 'Разное', 300);
+            } else {
+                add('Плотные джинсы / Штаны', 'Одежда', 700);
+                add('Теплый свитер / Худи', 'Одежда', 600);
+                add('Теплая куртка / Пуховик', 'Одежда', 1200);
+                add('Шапка, шарф, перчатки', 'Одежда', 350);
+                add('Зимняя обувь', 'Обувь', 1000);
+            }
+
+            // Возраст
+            if (age >= 18 && age <= 35) {
+                add('Powerbank (АКБ)', 'Техника', 300);
+                add('Беспроводные наушники', 'Техника', 100);
+            } else if (age > 50) {
+                add('Лекарства по рецепту', 'Аптечка', 200);
+                add('Тонометр', 'Аптечка', 350);
+            }
+        }
+
+        function updateCategorySelect() {
+            const select = document.getElementById('custom-item-category');
+            select.innerHTML = '';
+            categories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.innerText = cat;
+                if (cat === 'Разное') option.selected = true;
+                select.appendChild(option);
+            });
+        }
+
+        function addNewCategory() {
+            const input = document.getElementById('new-category-name');
+            const newCat = input.value.trim();
+            
+            if (newCat && !categories.includes(newCat)) {
+                categories.push(newCat);
+                updateCategorySelect();
+                renderCategories();
+                input.value = '';
+                
+                const container = document.querySelector('.flex-1.overflow-y-auto');
+                container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+            }
+        }
+
+        function addCustomItem() {
+            const input = document.getElementById('custom-item-name');
+            const select = document.getElementById('custom-item-category');
+            const text = input.value.trim();
+            const category = select.value;
+
+            if (!text) return;
+
+            initialItems.push({
+                id: String(Date.now()),
+                text: text,
+                category: category, 
+                weight: 200,        
+                checked: true       
+            });
+            
+            input.value = '';
+            renderCategories();
+        }
+
+        function renderCategories() {
+            const container = document.getElementById('categories-container');
+            container.innerHTML = '';
+
+            categories.forEach(cat => {
+                const items = initialItems.filter(i => i.category === cat);
+                
+                const block = document.createElement('div');
+                block.className = 'bg-white p-4 rounded-3xl shadow-sm border border-slate-100';
+                block.innerHTML = `
+                    <h3 class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">${cat}</h3>
+                    <div class="sort-list space-y-2 min-h-[20px]" data-cat="${cat}"></div>
+                `;
+                
+                const list = block.querySelector('.sort-list');
+                
+                if (items.length === 0) {
+                    list.innerHTML = `<div class="text-xs text-slate-300 text-center py-2 italic select-none pointer-events-none">Пусто. Перетащите сюда вещи</div>`;
+                }
+
+                items.forEach(item => {
+                    const row = document.createElement('div');
+                    row.setAttribute('data-id', item.id);
+                    row.className = `flex items-center justify-between p-3 rounded-2xl border transition-all ${item.checked ? 'bg-blue-50/50 border-blue-100' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`;
+                    
+                    row.innerHTML = `
+                        <div class="flex items-center gap-3 w-full cursor-pointer" onclick="toggleItem('${item.id}')">
+                            <div class="drag-handle text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing p-1" onclick="event.stopPropagation()">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path></svg>
+                            </div>
+                            <div class="w-6 h-6 rounded-md flex items-center justify-center border-2 transition-colors shrink-0 ${item.checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'}">
+                                ${item.checked ? '<svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>' : ''}
+                            </div>
+                            <span class="text-sm font-medium select-none ${item.checked ? 'text-slate-400 line-through' : 'text-slate-800'}">${item.text}</span>
+                        </div>
+                        <button onclick="deleteItem('${item.id}')" class="text-slate-300 hover:text-red-500 font-bold pl-3 pr-1 text-xl leading-none transition-colors">&times;</button>
+                    `;
+                    list.appendChild(row);
+                });
+                container.appendChild(block);
+            });
+
+            document.querySelectorAll('.sort-list').forEach(el => {
+                Sortable.create(el, { 
+                    group: 'items', 
+                    handle: '.drag-handle', 
+                    animation: 200, 
+                    delay: 100, 
+                    delayOnTouchOnly: true,
+                    onEnd: function (evt) {
+                        const itemId = evt.item.getAttribute('data-id');
+                        const newCategory = evt.to.getAttribute('data-cat');
+                        const itemObj = initialItems.find(i => i.id === itemId);
+                        
+                        if (itemObj && newCategory) {
+                            itemObj.category = newCategory;
+                            renderCategories();
+                        }
+                    }
+                });
+            });
+            
+            updateProgress();
+        }
+
+        function toggleItem(id) {
+            const item = initialItems.find(i => i.id === id);
+            if(item) {
+                item.checked = !item.checked;
+                renderCategories();
+            }
+        }
+
+        function deleteItem(id) {
+            initialItems = initialItems.filter(i => i.id !== id);
+            renderCategories();
+        }
+
+        function updateProgress() {
+            const total = initialItems.length;
+            const checked = initialItems.filter(i => i.checked).length;
+            document.getElementById('progress-text').innerText = `${checked} / ${total}`;
+        }
+
+        function updateSummary() {
+            const checkedItems = initialItems.filter(i => i.checked);
+            const totalWeight = checkedItems.reduce((sum, i) => sum + i.weight, 0);
+            
+            document.getElementById('total-weight-text').innerText = (totalWeight / 1000).toFixed(1) + ' кг';
+
+            const weightByCategory = {};
+            categories.forEach(cat => weightByCategory[cat] = 0);
+            
+            checkedItems.forEach(item => {
+                if(weightByCategory[item.category] !== undefined) {
+                    weightByCategory[item.category] += item.weight;
+                }
+            });
+
+            const labels = [];
+            const data = [];
+            
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
+            const bgColors = [];
+
+            let colorIndex = 0;
+            categories.forEach(cat => {
+                if(weightByCategory[cat] > 0) {
+                    labels.push(cat);
+                    data.push((weightByCategory[cat] / 1000).toFixed(2));
+                    bgColors.push(colors[colorIndex % colors.length]);
+                    colorIndex++;
+                }
+            });
+
+            if(data.length === 0) {
+                labels.push('Ничего не собрано');
+                data.push(1);
+                bgColors.push('#e2e8f0');
+            }
+
+            const ctx = document.getElementById('weightChart').getContext('2d');
+            
+            if(chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: bgColors,
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { boxWidth: 12, font: { family: 'Inter', size: 11 }, color: '#475569' }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if(labels[0] === 'Ничего не собрано') return ' 0 кг';
+                                    return ' ' + context.raw + ' кг';
+                                }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+    </script>
+</body>
+</html>
